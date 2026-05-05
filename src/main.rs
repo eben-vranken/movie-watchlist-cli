@@ -19,8 +19,20 @@ fn main() {
         print_menu();
         
         let input: usize = ask_for_integer_input("Pick an option: ");
-        println!("\nYour input: {}", input.to_string())
+
+        match input {
+            0 => break,
+            1 => view_watchlist(),
+            2 => mark_movie_as_seen(),
+            3 => add_movie_to_watchlist(),
+            4 => remove_movie_from_watchlist(),
+            _ => println!("{} {}", input.to_string().cyan(), "is not a valid option!".red())
+        }
+
+        println!()
     }
+
+    println!("{}", "Goodbye!".cyan());
 }
 
 fn startup_info() {
@@ -37,7 +49,7 @@ fn print_line() {
 }
 
 fn print_menu() {
-    for index in 0..MENU_OPTIONS.len() {
+    for (index, option) in MENU_OPTIONS.iter().enumerate() {
         let visual_index: &str = &(index + 1).to_string();
         println!("{}. {}", visual_index.red(), MENU_OPTIONS[index].green())
     }
@@ -46,16 +58,35 @@ fn print_menu() {
 }
 
 fn ask_for_integer_input(prompt: &str) -> usize {
-    print!("{}", prompt.magenta());
-    io::stdout().flush().unwrap();
-
-    let mut option = String::new();
-
-    io::stdin()
-        .read_line(&mut option)
-        .expect("Unexpected input");
+    loop {
+        print!("{}", prompt.magenta());
+        io::stdout().flush().unwrap();
     
-    let option: usize = option.trim().parse().expect("Input was not a decimal number!");
+        let mut option = String::new();
+    
+        io::stdin()
+            .read_line(&mut option)
+            .expect("Unexpected input");
+        
+        match option.trim().parse::<usize>() {
+            Ok(num) => return num,
+            Err(_) => println!("{}", "Please enter a whole number".red())
+        }
+    }
+}
 
-    option
+fn view_watchlist() {
+
+}
+
+fn mark_movie_as_seen() {
+
+}
+
+fn add_movie_to_watchlist() {
+
+}
+
+fn remove_movie_from_watchlist() {
+
 }
