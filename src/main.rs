@@ -1,92 +1,148 @@
+mod db;
+
 use colored::Colorize;
-use std::io::{self, Write};
+use anyhow::anyhow;
 
-const TITLE: &str = "PERSONAL MOVIE WATCHLIST";
-const VERSION: &str = "0.0.1";
-const AUTHOR: &str = "Eben Vranken";
+enum Command {
+    Add(String),
+    View,
+    Rate(String, u8),
+    Stats,
+    Delete(String),
+}
 
-const MENU_OPTIONS: [&str; 4] = [
-    "View watchlist",
-    "Mark movie as seen",
-    "Add movie",
-    "Remove movie"
-];
+fn parse_command() -> Result<Command, String> {
+    let cmd = std::env::args().nth(1).ok_or("No command given")?;
 
-fn main() {
-    startup_info();
-    
-    loop {
-        print_menu();
-        
-        let input: usize = ask_for_integer_input("Pick an option: ");
-
-        match input {
-            0 => break,
-            1 => view_watchlist(),
-            2 => mark_movie_as_seen(),
-            3 => add_movie_to_watchlist(),
-            4 => remove_movie_from_watchlist(),
-            _ => println!("{} {}", input.to_string().cyan(), "is not a valid option!".red())
+    match cmd.as_str() {
+        "add" => {
+            let movie = std::env::args()
+                .nth(2)
+                .ok_or("add requires a movie title")?;
+            Ok(Command::Add(movie))
         }
+        "view" => Ok(Command::View),
+        "rate" => {
+            let movie = std::env::args()
+                .nth(2)
+                .ok_or("rate requires a movie title")?;
+            let rating = std::env::args().nth(3).ok_or("rate requires a rating")?;
 
-        println!()
-    }
+            let rating: f32 = rating
+                .as_str()
+                .parse()
+                .map_err(|_| "Rating was not a numerical number".to_string())?;
 
-    println!("{}", "Goodbye!".cyan());
-}
-
-fn startup_info() {
-    print_line();
-    println!("{}", TITLE.blue());
-    print_line();
-    println!("Version: {}", VERSION.cyan());
-    println!("Author: {}", AUTHOR.cyan());
-    print_line();
-}
-
-fn print_line() {
-    println!("{}", "-".repeat(TITLE.len()).blue());
-}
-
-fn print_menu() {
-    for (index, option) in MENU_OPTIONS.iter().enumerate() {
-        let visual_index: &str = &(index + 1).to_string();
-        println!("{}. {}", visual_index.red(), MENU_OPTIONS[index].green())
-    }
-
-    print_line();
-}
-
-fn ask_for_integer_input(prompt: &str) -> usize {
-    loop {
-        print!("{}", prompt.magenta());
-        io::stdout().flush().unwrap();
-    
-        let mut option = String::new();
-    
-        io::stdin()
-            .read_line(&mut option)
-            .expect("Unexpected input");
-        
-        match option.trim().parse::<usize>() {
-            Ok(num) => return num,
-            Err(_) => println!("{}", "Please enter a whole number".red())
+            match validate_rating(rating) {
+                Ok(rating) => Ok(Command::Rate(movie, rating)),
+                Err(e) => Err(e)
+            }
         }
+        "stats" => Ok(Command::Stats),
+        "delete" => {
+            let movie: String = std::env::args()
+                .nth(2)
+                .ok_or("delete requires a movie title")?;
+            Ok(Command::Delete(movie))
+        }
+        _ => Err(format!("{} is not a valid command", cmd)),
     }
+}
+
+fn validate_rating(rating: f32) -> Result<u8, String> {
+    let doubled = rating * 2.0;
+
+    if doubled < 0.0 || doubled > 10.0 {
+        Err("Rating must be between 0 and 5".to_string())
+    } else if doubled.fract() != 0.0 {
+        Err("Rating must either be a whole number or .5 decimal".to_string())
+    } else {
+        Ok(doubled as u8)
+    }
+}
+
+fn main() -> anyhow::Result<()>{
+    let conn = db::initialize_db()?;
+
+    match parse_command() {
+        Ok(Command::Add(_title)) => db::add_movie(&conn)?,
+        Ok(Command::View) => db::view_movies(&conn)?,
+        Ok(Command::Rate(title, rating)) => rate_movie(title, rating),
+        Ok(Command::Stats) => watchlist_stats(),
+        Ok(Command::Delete(title)) => remove_movie_from_watchlist(title),
+        Err(e) => println!("{}", e.red()),
+    }
+
+    Ok(())
 }
 
 fn view_watchlist() {
-
+    println!("Watchlist");
 }
 
-fn mark_movie_as_seen() {
-
+fn add_movie_to_watchlist(title: String) {
+    println!("Added '{}' to watchlist", title)
 }
 
-fn add_movie_to_watchlist() {
+fn rate_movie(title: String, rating: u8) {
+    let rating: f32 = rating as f32 / 2.0;
 
+    if rating.fract() == 0.0 {
+        println!("Rated '{}' a {}/5", title, rating);
+    } else {
+        println!("Rated '{}' a {:.1}/5", title, rating);
+    }
 }
 
-fn remove_movie_from_watchlist() {
+fn watchlist_stats() {
+    println!("Watchlist stats");
+}
 
+fn remove_movie_from_watchlist(title: String) {
+    println!("Removed '{}' from watchlist", title);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+   
+    mod rating_input {
+        use super::*;
+
+        // Rating tests
+        #[test]
+        fn test_whole_number_rating_is_valid() {
+            assert_eq!(validate_rating(3.0), Ok(6));
+        }
+
+        #[test]
+        fn test_half_step_rating_is_valid() {
+            assert_eq!(validate_rating(3.5), Ok(7));
+        }
+       
+        #[test]
+        fn test_minimum_rating_is_valid() {
+            assert_eq!(validate_rating(0.0), Ok(0));
+        }
+       
+        #[test]
+        fn test_maximum_rating_is_valid() {
+            assert_eq!(validate_rating(5.0), Ok(10));
+        }
+
+        #[test]
+        fn test_rating_over_maximum_is_rejected() {
+            assert_eq!(validate_rating(10.0), Err("Rating must be between 0 and 5".to_string()));
+        }
+
+        #[test]
+        fn test_rating_under_minimum_is_rejected() {
+            assert_eq!(validate_rating(-5.0), Err("Rating must be between 0 and 5".to_string()));
+        }
+
+        #[test]
+        fn test_wrong_half_step_rating_is_rejected() {
+            assert_eq!(validate_rating(2.7), Err("Rating must either be a whole number or .5 decimal".to_string()));
+        }
+    }
 }
