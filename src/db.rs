@@ -1,9 +1,10 @@
 use rusqlite::Connection;
 use directories::ProjectDirs;
 use anyhow::Result;
+use tabled::Tabled;
 
 #[derive(Debug)]
-enum Status {
+pub enum Status {
     Watched,
     Watching,
     Watchlist,
@@ -11,24 +12,46 @@ enum Status {
 }
 
 impl Status {
-    fn as_str(&self) -> &'static str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             Status::Watched => "watched",
             Status::Watching => "watching",
             Status::Watchlist => "watchlist",
             Status::Dropped => "dropped",
         }
+    }   
+
+    fn as_status(args: &str) -> Status {
+    match args {
+            "watched" => Status::Watched,
+            "watching" => Status::Watching ,
+            "watchlist" => Status::Watchlist ,
+            "dropped" => Status::Dropped,
+            _ => Status::Watched, // Fallback for now, technically impossible to happen, but later I will add Error logging
+        }
     }
 }
 
-#[derive(Debug)]
-struct Movie {
-    title: String,
-    year: u16,
-    director: String,
-    runtime: u16,
-    rating: u8,
-    status: Status,
+impl std::fmt::Display for Status {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+#[derive(Debug, Tabled)]
+pub struct Movie {
+    #[tabled(rename = "Title")]
+    pub title: String,
+    #[tabled(rename = "Year")]
+    pub year: u16,
+    #[tabled(rename = "Director")]
+    pub director: String,
+    #[tabled(rename = "Runtime")]
+    pub runtime: u16,
+    #[tabled(rename = "Rating")]
+    pub rating: u8,
+    #[tabled(rename = "Status")]
+    pub status: Status,
 }
 
 pub fn initialize_db() -> Result<Connection> {
@@ -71,4 +94,23 @@ pub fn add_movie(conn: &Connection) -> Result<()> {
     )?;
 
     Ok(())
+}
+
+pub fn view_watchlist(conn: &Connection) -> Result<Vec<Movie>> {
+    let mut stmt = conn.prepare("SELECT title, year, director, runtime, rating, status FROM movies")?;
+
+    let movies: Vec<Movie> = stmt.query_map([], |row| {
+        let status_str: String = row.get(5)?;
+        Ok(Movie {
+            title: row.get(0)?,
+            year : row.get(1)?,
+            director: row.get(2)?,
+            runtime: row.get(3)?,
+            rating: row.get(4)?,
+            status: Status::as_status(&status_str),
+        })
+    })?
+    .collect::<rusqlite::Result<Vec<Movie>>>()?;
+
+    Ok(movies)
 }

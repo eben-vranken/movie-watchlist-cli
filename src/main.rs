@@ -1,8 +1,8 @@
 mod db;
 
+use db::Movie;
 use colored::Colorize;
-use anyhow::anyhow;
-
+use tabled::settings::Style;
 enum Command {
     Add(String),
     View,
@@ -10,6 +10,7 @@ enum Command {
     Stats,
     Delete(String),
 }
+
 
 fn parse_command() -> Result<Command, String> {
     let cmd = std::env::args().nth(1).ok_or("No command given")?;
@@ -66,7 +67,7 @@ fn main() -> anyhow::Result<()>{
 
     match parse_command() {
         Ok(Command::Add(_title)) => db::add_movie(&conn)?,
-        Ok(Command::View) => db::view_movies(&conn)?,
+        Ok(Command::View) => view_watchlist(db::view_watchlist(&conn)?),
         Ok(Command::Rate(title, rating)) => rate_movie(title, rating),
         Ok(Command::Stats) => watchlist_stats(),
         Ok(Command::Delete(title)) => remove_movie_from_watchlist(title),
@@ -76,11 +77,12 @@ fn main() -> anyhow::Result<()>{
     Ok(())
 }
 
-fn view_watchlist() {
-    println!("Watchlist");
+fn view_watchlist(movies:Vec<Movie>) {
+    let table = tabled::Table::new(movies).with(Style::rounded()).to_string();
+    println!("{}", table);
 }
 
-fn add_movie_to_watchlist(title: String) {
+fn _add_movie_to_watchlist(title: String) {
     println!("Added '{}' to watchlist", title)
 }
 
