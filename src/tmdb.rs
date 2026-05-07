@@ -1,7 +1,6 @@
 use serde::Deserialize;
 use tabled::Tabled;
 use tabled::settings::Style;
-use std::io::{self, Write};
 
 #[derive(Deserialize)]
 struct SearchResponse {

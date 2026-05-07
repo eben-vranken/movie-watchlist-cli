@@ -67,7 +67,20 @@ pub fn initialize_db() -> Result<Connection> {
     let conn = Connection::open(&db_path)?;
 
     conn.execute(
-        "CREATE TABLE IF NOT EXISTS movies (
+        "CREATE TABLE IF NOT EXISTS movies_seen_list (
+            id       INTEGER PRIMARY KEY,
+            title    TEXT NOT NULL UNIQUE,
+            year     INTEGER,
+            director TEXT,
+            runtime  INTEGER,
+            rating   INTEGER,
+            status   TEXT NOT NULL DEFAULT 'watchlist'
+        )",
+        (),
+    )?;
+
+        conn.execute(
+        "CREATE TABLE IF NOT EXISTS movies_watchlist (
             id       INTEGER PRIMARY KEY,
             title    TEXT NOT NULL UNIQUE,
             year     INTEGER,
@@ -93,7 +106,25 @@ pub fn add_movie(conn: &Connection, title: String) -> Result<()> {
     };
 
     conn.execute(
-        "INSERT INTO movies (title, year, director, runtime, rating, status) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        "INSERT INTO movies_watchlist (title, year, director, runtime, rating, status) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        (&movie.title, &movie.year, &movie.director, &movie.runtime, &movie.rating, movie.status.as_str())
+    )?;
+
+    Ok(())
+}
+
+pub fn rate_movie(conn: &Connection, title: String, rating: u8) -> Result<()> {
+    let movie = Movie {
+        title: title,
+        year: 1985,
+        director: "Star Wars".to_string(),
+        runtime: 25,
+        rating: rating,
+        status: Status::Watched,
+    };
+
+    conn.execute(
+        "INSERT INTO movies_seen_list (title, year, director, runtime, rating, status) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         (&movie.title, &movie.year, &movie.director, &movie.runtime, &movie.rating, movie.status.as_str())
     )?;
 
@@ -101,7 +132,26 @@ pub fn add_movie(conn: &Connection, title: String) -> Result<()> {
 }
 
 pub fn view_watchlist(conn: &Connection) -> Result<Vec<Movie>> {
-    let mut stmt = conn.prepare("SELECT title, year, director, runtime, rating, status FROM movies")?;
+    let mut stmt = conn.prepare("SELECT title, year, director, runtime, rating, status FROM movies_watchlist")?;
+
+    let movies: Vec<Movie> = stmt.query_map([], |row| {
+        let status_str: String = row.get(5)?;
+        Ok(Movie {
+            title: row.get(0)?,
+            year : row.get(1)?,
+            director: row.get(2)?,
+            runtime: row.get(3)?,
+            rating: row.get(4)?,
+            status: Status::as_status(&status_str),
+        })
+    })?
+    .collect::<rusqlite::Result<Vec<Movie>>>()?;
+
+    Ok(movies)
+}
+
+pub fn view_diary(conn: &Connection) -> Result<Vec<Movie>> {
+    let mut stmt = conn.prepare("SELECT title, year, director, runtime, rating, status FROM movies_seen_list")?;
 
     let movies: Vec<Movie> = stmt.query_map([], |row| {
         let status_str: String = row.get(5)?;

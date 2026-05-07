@@ -7,7 +7,8 @@ use tabled::settings::Style;
 
 enum Command {
     Add(String),
-    View,
+    Watchlist,
+    Diary,
     Rate(String, u8),
     Stats,
     Search(String),
@@ -24,7 +25,8 @@ fn parse_command() -> Result<Command, String> {
                 .ok_or("add requires a movie title")?;
             Ok(Command::Add(movie))
         }
-        "view" => Ok(Command::View),
+        "watchlist" => Ok(Command::Watchlist),
+        "diary" => Ok(Command::Diary),
         "rate" => {
             let movie = std::env::args()
                 .nth(2)
@@ -73,8 +75,9 @@ fn main() -> anyhow::Result<()>{
 
     match parse_command() {
         Ok(Command::Add(title)) => db::add_movie(&conn, title)?,
-        Ok(Command::View) => view_watchlist(db::view_watchlist(&conn)?),
-        Ok(Command::Rate(title, rating)) => rate_movie(title, rating),
+        Ok(Command::Watchlist) => print_list(db::view_watchlist(&conn)?),
+        Ok(Command::Diary) => print_list(db::view_diary(&conn)?),
+        Ok(Command::Rate(title, rating)) => db::rate_movie(&conn, title, rating)?,
         Ok(Command::Stats) => watchlist_stats(),
         Ok(Command::Search(title)) => tmdb::search_movie_from_title(&title)?, 
         Ok(Command::Delete(title)) => remove_movie_from_watchlist(title),
@@ -84,7 +87,7 @@ fn main() -> anyhow::Result<()>{
     Ok(())
 }
 
-fn view_watchlist(movies:Vec<Movie>) {
+fn print_list(movies:Vec<Movie>) {
     let table = tabled::Table::new(movies).with(Style::rounded()).to_string();
     println!("{}", table);
 }
