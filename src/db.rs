@@ -82,9 +82,9 @@ pub fn initialize_db() -> Result<Connection> {
     Ok(conn)
 }
 
-pub fn add_movie(conn: &Connection) -> Result<()> {
+pub fn add_movie(conn: &Connection, title: String) -> Result<()> {
     let movie = Movie {
-        title: "Apocalypse Noww".to_string(),
+        title: title,
         year: 1979,
         director: "Francis Ford Coppola".to_string(),
         runtime: 120,

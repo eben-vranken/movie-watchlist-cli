@@ -1,16 +1,18 @@
 mod db;
+mod tmdb;
 
 use db::Movie;
 use colored::Colorize;
 use tabled::settings::Style;
+
 enum Command {
     Add(String),
     View,
     Rate(String, u8),
     Stats,
+    Search(String),
     Delete(String),
 }
-
 
 fn parse_command() -> Result<Command, String> {
     let cmd = std::env::args().nth(1).ok_or("No command given")?;
@@ -40,6 +42,10 @@ fn parse_command() -> Result<Command, String> {
             }
         }
         "stats" => Ok(Command::Stats),
+        "search" => {
+            let title = std::env::args().nth(2).ok_or("search requires a title")?;
+            Ok(Command::Search(title))
+        }
         "delete" => {
             let movie: String = std::env::args()
                 .nth(2)
@@ -66,10 +72,11 @@ fn main() -> anyhow::Result<()>{
     let conn = db::initialize_db()?;
 
     match parse_command() {
-        Ok(Command::Add(_title)) => db::add_movie(&conn)?,
+        Ok(Command::Add(title)) => db::add_movie(&conn, title)?,
         Ok(Command::View) => view_watchlist(db::view_watchlist(&conn)?),
         Ok(Command::Rate(title, rating)) => rate_movie(title, rating),
         Ok(Command::Stats) => watchlist_stats(),
+        Ok(Command::Search(title)) => tmdb::search_movie_from_title(&title)?, 
         Ok(Command::Delete(title)) => remove_movie_from_watchlist(title),
         Err(e) => println!("{}", e.red()),
     }
