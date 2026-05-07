@@ -38,6 +38,10 @@ impl std::fmt::Display for Status {
     }
 }
 
+fn display_rating(rating: &u8) -> String {
+    format!("{}", *rating as f32 / 2.0)
+}
+
 #[derive(Debug, Tabled)]
 pub struct Movie {
     #[tabled(rename = "Title")]
@@ -48,7 +52,7 @@ pub struct Movie {
     pub director: String,
     #[tabled(rename = "Runtime")]
     pub runtime: u16,
-    #[tabled(rename = "Rating")]
+    #[tabled(rename = "Rating", display("display_rating"))]
     pub rating: u8,
     #[tabled(rename = "Status")]
     pub status: Status,
@@ -80,11 +84,11 @@ pub fn initialize_db() -> Result<Connection> {
 
 pub fn add_movie(conn: &Connection) -> Result<()> {
     let movie = Movie {
-        title: "Apocalypse Now".to_string(),
+        title: "Apocalypse Noww".to_string(),
         year: 1979,
         director: "Francis Ford Coppola".to_string(),
         runtime: 120,
-        rating: 10,
+        rating: 3,
         status: Status::Watched,
     };
 
