@@ -12,7 +12,7 @@ enum Command {
     Rate(String, u8),
     Stats,
     Search(String),
-    Delete(String),
+    Delete(String, u32),
 }
 
 fn parse_command() -> Result<Command, String> {
@@ -49,10 +49,15 @@ fn parse_command() -> Result<Command, String> {
             Ok(Command::Search(title))
         }
         "delete" => {
-            let movie: String = std::env::args()
+            let list_type: String = std::env::args()
                 .nth(2)
                 .ok_or("delete requires a movie title")?;
-            Ok(Command::Delete(movie))
+
+            
+            let id = std::env::args().nth(3).ok_or("id needs to be a number")?;
+
+            let id:u32 = id.as_str().parse().map_err(|_| "ID was not a numerical number.".to_string())?;
+            Ok(Command::Delete(list_type, id))
         }
         _ => Err(format!("{} is not a valid command", cmd)),
     }
@@ -80,7 +85,7 @@ fn main() -> anyhow::Result<()>{
         Ok(Command::Rate(title, rating)) => db::rate_movie(&conn, title, rating)?,
         Ok(Command::Stats) => watchlist_stats(),
         Ok(Command::Search(title)) => tmdb::search_movie_from_title(&title)?, 
-        Ok(Command::Delete(title)) => remove_movie_from_watchlist(title),
+        Ok(Command::Delete(list_type, id)) => db::delete_from_list(&conn, list_type, id)?,
         Err(e) => println!("{}", e.red()),
     }
 
@@ -108,10 +113,6 @@ fn rate_movie(title: String, rating: u8) {
 
 fn watchlist_stats() {
     println!("Watchlist stats");
-}
-
-fn remove_movie_from_watchlist(title: String) {
-    println!("Removed '{}' from watchlist", title);
 }
 
 #[cfg(test)]
