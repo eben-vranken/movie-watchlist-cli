@@ -1,42 +1,8 @@
 use rusqlite::Connection;
 use directories::ProjectDirs;
 use anyhow::Result;
+use std::io::Write;
 use tabled::Tabled;
-
-#[derive(Debug)]
-pub enum Status {
-    Watched,
-    Watching,
-    Watchlist,
-    Dropped,
-}
-
-impl Status {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Status::Watched => "watched",
-            Status::Watching => "watching",
-            Status::Watchlist => "watchlist",
-            Status::Dropped => "dropped",
-        }
-    }   
-
-    fn as_status(args: &str) -> Status {
-    match args {
-            "watched" => Status::Watched,
-            "watching" => Status::Watching ,
-            "watchlist" => Status::Watchlist ,
-            "dropped" => Status::Dropped,
-            _ => Status::Watched, // Fallback for now, technically impossible to happen, but later I will add Error logging
-        }
-    }
-}
-
-impl std::fmt::Display for Status {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
-}
 
 fn display_rating(rating: &u8) -> String {
     format!("{}", *rating as f32 / 2.0)
@@ -50,7 +16,21 @@ fn display_id(id: &Option<u32>) -> String {
 }
 
 #[derive(Debug, Tabled)]
-pub struct Movie {
+pub struct MovieWatchlist {
+    #[tabled(rename = "ID", display("display_id"))]
+    pub id: Option<u32>,
+    #[tabled(rename = "Title")]
+    pub title: String,
+    #[tabled(rename = "Year")]
+    pub year: u16,
+    #[tabled(rename = "Director")]
+    pub director: String,
+    #[tabled(rename = "Runtime")]
+    pub runtime: u16,
+}
+
+#[derive(Debug, Tabled)]
+pub struct MovieDiary {
     #[tabled(rename = "ID", display("display_id"))]
     pub id: Option<u32>,
     #[tabled(rename = "Title")]
@@ -63,8 +43,6 @@ pub struct Movie {
     pub runtime: u16,
     #[tabled(rename = "Rating", display("display_rating"))]
     pub rating: u8,
-    #[tabled(rename = "Status")]
-    pub status: Status,
 }
 
 pub fn initialize_db() -> Result<Connection> {
@@ -82,8 +60,7 @@ pub fn initialize_db() -> Result<Connection> {
             year     INTEGER,
             director TEXT,
             runtime  INTEGER,
-            rating   INTEGER,
-            status   TEXT NOT NULL DEFAULT 'watchlist'
+            rating   INTEGER
         )",
         (),
     )?;
@@ -95,8 +72,7 @@ pub fn initialize_db() -> Result<Connection> {
             year     INTEGER,
             director TEXT,
             runtime  INTEGER,
-            rating   INTEGER,
-            status   TEXT NOT NULL DEFAULT 'watchlist'
+            rating   INTEGER
         )",
         (),
     )?;
@@ -104,80 +80,66 @@ pub fn initialize_db() -> Result<Connection> {
     Ok(conn)
 }
 
-pub fn add_movie(conn: &Connection, title: String) -> Result<()> {
-    let movie = Movie {
-        id: None,
-        title: title,
-        year: 1979,
-        director: "Francis Ford Coppola".to_string(),
-        runtime: 120,
-        rating: 3,
-        status: Status::Watched,
-    };
+pub fn add_movie(conn: &Connection) -> Result<()> {
+    let title = ask_for_input("Title: ");
+    let year = ask_for_input("Year: ");
+    let director = ask_for_input("Director: ");
+    let runtime = ask_for_input("Runtime: ");
 
     conn.execute(
-        "INSERT INTO movies_watchlist (title, year, director, runtime, rating, status) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        (&movie.title, &movie.year, &movie.director, &movie.runtime, &movie.rating, movie.status.as_str())
+        "INSERT INTO movies_watchlist (title, year, director, runtime) VALUES (?1, ?2, ?3, ?4)",
+        (&title, &year, &director, &runtime)
     )?;
 
     Ok(())
 }
 
-pub fn rate_movie(conn: &Connection, title: String, rating: u8) -> Result<()> {
-    let movie = Movie {
-        id: None,
-        title: title,
-        year: 1985,
-        director: "Star Wars".to_string(),
-        runtime: 25,
-        rating: rating,
-        status: Status::Watched,
-    };
+pub fn rate_movie(conn: &Connection) -> Result<()> {
+    let title = ask_for_input("Title: ");
+    let year = ask_for_input("Year: ");
+    let director = ask_for_input("Director: ");
+    let runtime = ask_for_input("Runtime: ");
+    let rating = ask_for_input("Rating: ");
 
     conn.execute(
-        "INSERT INTO movies_seen_list (title, year, director, runtime, rating, status) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        (&movie.title, &movie.year, &movie.director, &movie.runtime, &movie.rating, movie.status.as_str())
+        "INSERT INTO movies_seen_list (title, year, director, runtime, rating) VALUES (?1, ?2, ?3, ?4, ?5)",
+        (&title, &year, &director, &runtime, &rating)
     )?;
 
     Ok(())
 }
 
-pub fn view_watchlist(conn: &Connection) -> Result<Vec<Movie>> {
-    let mut stmt = conn.prepare("SELECT id, title, year, director, runtime, rating, status FROM movies_watchlist")?;
+pub fn view_watchlist(conn: &Connection) -> Result<Vec<MovieWatchlist>> {
+    let mut stmt = conn.prepare("SELECT id, title, year, director, runtime FROM movies_watchlist")?;
 
-    let movies: Vec<Movie> = stmt.query_map([], |row| {
-        let status_str: String = row.get(6)?;
-        Ok(Movie {
+    let movies: Vec<MovieWatchlist> = stmt.query_map([], |row| {
+        Ok(MovieWatchlist {
             id: row.get(0)?,
             title: row.get(1)?,
             year : row.get(2)?,
             director: row.get(3)?,
             runtime: row.get(4)?,
-            rating: row.get(5)?,
-            status: Status::as_status(&status_str),
         })
     })?
-    .collect::<rusqlite::Result<Vec<Movie>>>()?;
+    .collect::<rusqlite::Result<Vec<MovieWatchlist>>>()?;
 
     Ok(movies)
 }
 
-pub fn view_diary(conn: &Connection) -> Result<Vec<Movie>> {
-    let mut stmt = conn.prepare("SELECT id, title, year, director, runtime, rating, status FROM movies_seen_list")?;
+pub fn view_diary(conn: &Connection) -> Result<Vec<MovieDiary>> {
+    let mut stmt = conn.prepare("SELECT id, title, year, director, runtime, rating FROM movies_seen_list")?;
 
-    let movies: Vec<Movie> = stmt.query_map([], |row| {
-        let status_str: String = row.get(6)?;
-        Ok(Movie {
+    let movies: Vec<MovieDiary> = stmt.query_map([], |row| {
+        Ok(MovieDiary {
             id: row.get(0)?,
             title: row.get(1)?,
             year : row.get(2)?,
             director: row.get(3)?,
             runtime: row.get(4)?,
             rating: row.get(5)?,
-            status: Status::as_status(&status_str),
         })
     })?
-    .collect::<rusqlite::Result<Vec<Movie>>>()?;
+    .collect::<rusqlite::Result<Vec<MovieDiary>>>()?;
 
     Ok(movies)
 }
@@ -198,3 +160,13 @@ pub fn delete_from_list(conn: &Connection, list_type: String, id: u32) -> Result
 
     Ok(())
 }
+
+fn ask_for_input(prompt: &str) -> String {
+    let mut input = String::new();
+    
+    print!("{}", prompt);
+    std::io::stdout().flush().unwrap();
+    std::io::stdin().read_line(&mut input).expect("Something went wrong");
+
+    input.trim().to_string()
+} 

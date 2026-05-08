@@ -16,12 +16,14 @@ struct SearchResult {
     release_date: String,
 }
 
-const API_KEY = std::env::var("TMDB_API_KEY")?;
+pub fn search_movie_from_title(query: &str) -> anyhow::Result<()>  {
+    let api_key = std::env::var("TMDB_API_KEY")
+        .map_err(|_| anyhow::anyhow!("TMDB_API_KEY env var not set"))?;
 
-pub fn search_movie_from_title(query: &str) -> Result<(), reqwest::Error>  {
+
     let client = reqwest::blocking::Client::new();
 
-    let url: String = format!("https://api.themoviedb.org/3/search/movie?api_key={}&query={}", API_KEY, query);
+    let url: String = format!("https://api.themoviedb.org/3/search/movie?api_key={}&query={}", api_key, query);
     let res = client.get(url).send()?;
 
     // Going to parse data here
@@ -33,5 +35,3 @@ pub fn search_movie_from_title(query: &str) -> Result<(), reqwest::Error>  {
 
     Ok(())
 }
-
-pub fn 
