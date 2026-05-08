@@ -99,7 +99,9 @@ pub fn rate_movie(conn: &Connection) -> Result<()> {
     let year = ask_for_input("Year: ");
     let director = ask_for_input("Director: ");
     let runtime = ask_for_input("Runtime: ");
-    let rating = ask_for_input("Rating: ");
+    let rating_input = ask_for_input("Rating (0-5, half-steps allowed): ");
+
+    let rating = parse_rating(&rating_input)?;
 
     conn.execute(
         "INSERT INTO movies_seen_list (title, year, director, runtime, rating) VALUES (?1, ?2, ?3, ?4, ?5)",
@@ -107,6 +109,23 @@ pub fn rate_movie(conn: &Connection) -> Result<()> {
     )?;
 
     Ok(())
+}
+
+fn parse_rating(input: &str) -> Result<u8> {
+    let value: f32 = input
+        .parse()
+        .map_err(|_| anyhow::anyhow!("rating must be a number"))?;
+
+    let doubled = value * 2.0;
+
+    if doubled < 0.0 || doubled > 10.0 {
+        return Err(anyhow::anyhow!("rating must be between 0 and 5"));
+    }
+    if doubled.fract() != 0.0 {
+        return Err(anyhow::anyhow!("rating must be a whole or half step (e.g. 3 or 3.5)"));
+    }
+
+    Ok(doubled as u8)
 }
 
 pub fn view_watchlist(conn: &Connection) -> Result<Vec<MovieWatchlist>> {
