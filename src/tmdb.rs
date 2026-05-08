@@ -16,7 +16,7 @@ struct SearchResult {
     release_date: String,
 }
 
-const API_KEY: &str = "3c5f587451e7a0dd03214e56485e818f";
+const API_KEY = std::env::var("TMDB_API_KEY")?;
 
 pub fn search_movie_from_title(query: &str) -> Result<(), reqwest::Error>  {
     let client = reqwest::blocking::Client::new();
@@ -33,3 +33,5 @@ pub fn search_movie_from_title(query: &str) -> Result<(), reqwest::Error>  {
 
     Ok(())
 }
+
+pub fn 
